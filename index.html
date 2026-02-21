@@ -92,6 +92,13 @@
   .entry-desc { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .entry-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
   .entry-receipt-thumb { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); cursor: pointer; flex-shrink: 0; }
+  .entry-delete-btn { width: 28px; height: 28px; border-radius: 8px; border: none; background: transparent; color: var(--text-dim); font-size: 15px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .entry-delete-btn:hover { background: rgba(255,107,157,0.15); color: var(--accent-out); }
+  /* Confirm delete state */
+  .entry-card.confirming { border-color: var(--accent-out); background: rgba(255,107,157,0.07); }
+  .confirm-row { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+  .confirm-yes { padding: 5px 12px; border-radius: 8px; border: none; background: var(--accent-out); color: white; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .confirm-no  { padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); font-size: 12px; cursor: pointer; }
   .entry-amount { font-size: 15px; font-weight: 700; text-align: right; flex-shrink: 0; }
   .entry-amount.out { color: var(--accent-out); }
   .entry-amount.in  { color: var(--accent-in); }
@@ -439,16 +446,42 @@ function renderEntries() {
     const thumb   = e.receiptImage
       ? `<img class="entry-receipt-thumb" src="${e.receiptImage}" onclick="openImgModal('${e.receiptImage}')" title="View receipt">`
       : '';
-    return `<div class="entry-card">
+    return `<div class="entry-card" id="card-${e.id}">
       <div class="entry-icon ${e.direction}">${icon}</div>
       <div class="entry-info">
         <div class="entry-desc">${label}</div>
         <div class="entry-meta">${method} · ${dateStr}${e.who?' · '+e.who:''}</div>
+        <div class="confirm-row" id="confirm-${e.id}" style="display:none">
+          <span style="font-size:12px;color:var(--accent-out)">Delete this entry?</span>
+          <button class="confirm-yes" onclick="confirmDelete(${e.id})">Yes, delete</button>
+          <button class="confirm-no"  onclick="cancelDelete(${e.id})">Cancel</button>
+        </div>
       </div>
       ${thumb}
       <div class="entry-amount ${e.direction}">${sign}¥${Number(e.amount).toLocaleString()}</div>
+      <button class="entry-delete-btn" onclick="askDelete(${e.id})" title="Delete entry">🗑</button>
     </div>`;
   }).join('');
+}
+
+// ══ Delete ══
+function askDelete(id) {
+  // Hide any other open confirm rows first
+  document.querySelectorAll('.confirm-row').forEach(r => r.style.display='none');
+  document.querySelectorAll('.entry-card').forEach(c => c.classList.remove('confirming'));
+  // Show this one
+  document.getElementById('confirm-'+id).style.display='flex';
+  document.getElementById('card-'+id).classList.add('confirming');
+}
+function cancelDelete(id) {
+  document.getElementById('confirm-'+id).style.display='none';
+  document.getElementById('card-'+id).classList.remove('confirming');
+}
+function confirmDelete(id) {
+  entries = entries.filter(e => e.id !== id);
+  localStorage.setItem('mt_entries', JSON.stringify(entries));
+  renderEntries();
+  showToast('Entry deleted','#ffcc44');
 }
 
 // ══ Summary ══
