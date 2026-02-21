@@ -467,19 +467,15 @@
     <div class="page" id="page-log">
       <div class="log-header">
         <div class="log-header-label">Recent Entries</div>
-        <button class="refresh-btn" id="refreshBtn" onclick="fetchFromSheets(true)">
-          <span id="refreshIcon">↻</span> Sync
-        </button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="sheetLinkBtn" style="display:none" onclick="openSheet()"
+            class="refresh-btn">📊</button>
+          <button class="refresh-btn" id="refreshBtn" onclick="fetchFromSheets(true)">
+            <span id="refreshIcon">↻</span> Sync
+          </button>
+        </div>
       </div>
       <div id="entriesList"></div>
-      <div id="sheetLinkBar" style="display:none;text-align:center;padding:14px 0 20px">
-        <a id="sheetLinkBtn" href="#" target="_blank" rel="noopener"
-          style="display:inline-flex;align-items:center;gap:7px;padding:10px 20px;
-                 background:var(--card);border:1px solid var(--border);border-radius:14px;
-                 color:var(--text-dim);font-size:13px;text-decoration:none;">
-          📊 Open Google Sheets
-        </a>
-      </div>
     </div>
 
     <!-- ══ SUMMARY ══ -->
@@ -1348,12 +1344,11 @@ function saveScriptUrl(){
   showToast(url?'Connected! 🌸':'Disconnected','#7fff7f');
 }
 function updateSheetLink(){
-  const bar=document.getElementById('sheetLinkBar');
   const btn=document.getElementById('sheetLinkBtn');
-  if(bar&&btn){
-    bar.style.display=sheetUrl?'block':'none';
-    btn.href=sheetUrl||'#';
-  }
+  if(btn) btn.style.display=sheetUrl?'inline-flex':'none';
+}
+function openSheet(){
+  if(sheetUrl) window.open(sheetUrl,'_blank','noopener');
 }
 
 // ══════════════════════════════════════════════════
