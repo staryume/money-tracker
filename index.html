@@ -621,8 +621,9 @@ function handlePINComplete() {
     }
 
   } else if (pinMode === 'setup') {
-    pinPending = pinBuffer;
+    const _saved = pinBuffer;   // save BEFORE enterMode resets pinPending
     enterMode('setup-confirm');
+    pinPending = _saved;
 
   } else if (pinMode === 'setup-confirm') {
     if (pinBuffer === pinPending) {
@@ -644,8 +645,9 @@ function handlePINComplete() {
     }
 
   } else if (pinMode === 'change-new') {
-    pinPending = pinBuffer;
+    const _saved = pinBuffer;   // save BEFORE enterMode resets pinPending
     enterMode('change-confirm');
+    pinPending = _saved;
 
   } else if (pinMode === 'change-confirm') {
     if (pinBuffer === pinPending) {
