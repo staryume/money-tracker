@@ -17,6 +17,76 @@
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
          background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
 
+  /* ════════════════════════════════
+     PIN LOCK SCREEN
+  ════════════════════════════════ */
+  .pin-screen {
+    position: fixed; inset: 0; z-index: 999;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 30px 24px;
+    transition: opacity 0.35s ease;
+  }
+  .pin-screen.hidden { opacity: 0; pointer-events: none; }
+
+  .pin-logo  { font-size: 44px; margin-bottom: 12px; }
+  .pin-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .pin-sub   { font-size: 13px; color: var(--text-dim); margin-bottom: 32px; text-align: center; max-width: 260px; line-height: 1.5; }
+
+  /* Dot display */
+  .pin-dots  { display: flex; gap: 14px; margin-bottom: 32px; }
+  .pin-dot   { width: 16px; height: 16px; border-radius: 50%;
+               border: 2px solid var(--border); background: transparent;
+               transition: background 0.15s, border-color 0.15s; }
+  .pin-dot.filled { background: var(--purple); border-color: var(--purple); }
+  .pin-dot.error  { background: var(--accent-out); border-color: var(--accent-out); }
+
+  /* Error msg */
+  .pin-error { font-size: 13px; color: var(--accent-out); min-height: 18px;
+               margin-bottom: 16px; text-align: center; }
+
+  /* Keypad */
+  .pin-keypad { display: grid; grid-template-columns: repeat(3, 72px); gap: 14px; }
+  .pin-key {
+    width: 72px; height: 72px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--card);
+    color: var(--text); font-size: 22px; font-weight: 600;
+    cursor: pointer; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 1px;
+    transition: background 0.12s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+  }
+  .pin-key:active { background: rgba(192,132,252,0.25); transform: scale(0.92); }
+  .pin-key.empty  { background: transparent; border-color: transparent; cursor: default; }
+  .pin-key.del    { font-size: 20px; }
+  .pin-key-sub    { font-size: 9px; color: var(--text-dim); letter-spacing: 0.5px; }
+
+  /* Shake animation for wrong PIN */
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-8px)}
+    40%{transform:translateX(8px)}
+    60%{transform:translateX(-6px)}
+    80%{transform:translateX(6px)}
+  }
+  .shake { animation: shake 0.4s ease; }
+
+  /* Confirm step label */
+  .pin-step { display: inline-block; padding: 4px 12px; border-radius: 20px;
+              background: rgba(192,132,252,0.12); border: 1px solid rgba(192,132,252,0.25);
+              font-size: 11px; color: var(--purple); margin-bottom: 24px; }
+
+  /* Change PIN link */
+  .pin-change-link { margin-top: 24px; font-size: 12px; color: var(--text-dim);
+                     text-decoration: underline; cursor: pointer; }
+
+  /* ════════════════════════════════
+     MAIN APP (hidden until unlocked)
+  ════════════════════════════════ */
+  .app-wrap { display: none; }
+  .app-wrap.visible { display: block; }
+
   /* ── Header ── */
   .header { background: linear-gradient(135deg,#1a1a2e,#16213e); border-bottom: 1px solid var(--border);
             padding: 12px 16px 10px; position: sticky; top: 0; z-index: 10;
@@ -126,13 +196,13 @@
               letter-spacing: 0.5px; -webkit-tap-highlight-color: transparent; }
   .save-btn:active { transform: scale(0.97); opacity: 0.9; }
 
-  /* ── Log header row ── */
+  /* ── Log header ── */
   .log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
   .log-header-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim); }
   .refresh-btn { display: flex; align-items: center; gap: 5px; padding: 6px 11px;
                  border-radius: 10px; border: 1px solid var(--border); background: transparent;
                  color: var(--text-dim); font-size: 12px; cursor: pointer;
-                 -webkit-tap-highlight-color: transparent; transition: all 0.15s; }
+                 -webkit-tap-highlight-color: transparent; }
   .refresh-btn:active { background: var(--card); }
   .refresh-btn.loading { color: var(--purple); border-color: var(--purple); }
   .spin { display: inline-block; animation: spin 0.7s linear infinite; }
@@ -245,7 +315,8 @@
   .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
   @media print {
-    .header, .tab-bar, .pdf-btn, .month-nav, .refresh-btn { display: none !important; }
+    .pin-screen, .header, .tab-bar, .pdf-btn, .month-nav, .refresh-btn { display: none !important; }
+    .app-wrap.visible { display: block !important; }
     .content { padding-bottom: 16px; }
     body { background: white; color: black; }
     .summary-card { border: 1px solid #ddd; }
@@ -254,129 +325,163 @@
 </head>
 <body>
 
-<!-- ── Header ── -->
-<div class="header">
-  <div>
-    <div class="header-title">💰 Money Tracker</div>
-    <div class="header-date" id="headerDate"></div>
+<!-- ════════════════════════════════
+     PIN LOCK SCREEN
+════════════════════════════════ -->
+<div class="pin-screen" id="pinScreen">
+  <div class="pin-logo">🔒</div>
+  <div class="pin-title" id="pinTitle">Welcome back</div>
+  <div class="pin-sub"  id="pinSub">Enter your PIN to unlock</div>
+  <div class="pin-step" id="pinStep" style="display:none">Step 1 of 2 — Set PIN</div>
+
+  <div class="pin-dots" id="pinDots">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
   </div>
-  <button class="setup-btn" onclick="openSetup()">⚙️ Setup</button>
+
+  <div class="pin-error" id="pinError"></div>
+
+  <div class="pin-keypad">
+    <button class="pin-key" onclick="pinKey('1')">1</button>
+    <button class="pin-key" onclick="pinKey('2')">2<div class="pin-key-sub">ABC</div></button>
+    <button class="pin-key" onclick="pinKey('3')">3<div class="pin-key-sub">DEF</div></button>
+    <button class="pin-key" onclick="pinKey('4')">4<div class="pin-key-sub">GHI</div></button>
+    <button class="pin-key" onclick="pinKey('5')">5<div class="pin-key-sub">JKL</div></button>
+    <button class="pin-key" onclick="pinKey('6')">6<div class="pin-key-sub">MNO</div></button>
+    <button class="pin-key" onclick="pinKey('7')">7<div class="pin-key-sub">PQRS</div></button>
+    <button class="pin-key" onclick="pinKey('8')">8<div class="pin-key-sub">TUV</div></button>
+    <button class="pin-key" onclick="pinKey('9')">9<div class="pin-key-sub">WXYZ</div></button>
+    <button class="pin-key empty"></button>
+    <button class="pin-key" onclick="pinKey('0')">0</button>
+    <button class="pin-key del" onclick="pinDel()">⌫</button>
+  </div>
+
+  <div class="pin-change-link" id="pinChangeLink" onclick="startChangePIN()" style="display:none">
+    Change PIN
+  </div>
 </div>
 
-<div class="content">
+<!-- ════════════════════════════════
+     MAIN APP
+════════════════════════════════ -->
+<div class="app-wrap" id="appWrap">
 
-  <!-- ══ ADD ══ -->
-  <div class="page active" id="page-add">
-
-    <div class="sync-bar">
-      <div class="sync-dot" id="syncDot"></div>
-      <span id="syncStatus">Not connected to Google Sheets</span>
+  <div class="header">
+    <div>
+      <div class="header-title">💰 Money Tracker</div>
+      <div class="header-date" id="headerDate"></div>
     </div>
-
-    <div class="inout-toggle">
-      <button class="inout-btn out" id="btn-out" onclick="setDirection('out')">💸 Spent</button>
-      <button class="inout-btn in"  id="btn-in"  onclick="setDirection('in')">💰 Received</button>
-    </div>
-
-    <div class="amount-row">
-      <input class="amount-input" id="amountInput" type="number" inputmode="decimal" placeholder="0" min="0">
-      <div class="yen-badge">¥</div>
-    </div>
-
-    <div class="section-label">Method</div>
-    <div class="chip-grid" id="method-chips"></div>
-
-    <div class="section-label">Situation</div>
-    <div class="chip-grid" id="situation-chips"></div>
-
-    <div class="who-field" id="whoField">
-      <div class="section-label">With who?</div>
-      <input class="text-input" id="whoInput" type="text" placeholder="Name…">
-    </div>
-
-    <div class="section-label">Description <span style="opacity:0.4">(optional)</span></div>
-    <input class="text-input" id="descInput" type="text" placeholder="e.g. lunch ramen, Starbucks…" maxlength="60">
-
-    <div id="receiptSection">
-      <div class="section-label">Receipt photo <span style="opacity:0.4">(optional)</span></div>
-      <div class="receipt-btns">
-        <label class="receipt-upload-btn" for="receiptCamera">
-          📷<br>Take Photo
-          <input type="file" id="receiptCamera" accept="image/*" capture="environment" style="display:none" onchange="handleReceiptFile(this)">
-        </label>
-        <label class="receipt-upload-btn" for="receiptGallery">
-          🖼️<br>Choose Image
-          <input type="file" id="receiptGallery" accept="image/*" style="display:none" onchange="handleReceiptFile(this)">
-        </label>
-      </div>
-      <div class="receipt-preview-wrap" id="receiptPreviewWrap">
-        <img class="receipt-preview" id="receiptPreviewImg" src="" alt="receipt" onclick="openImgModal(this.src)">
-        <button class="receipt-remove-btn" onclick="removeReceipt()">✕</button>
-      </div>
-    </div>
-
-    <div class="section-label">Date</div>
-    <div class="date-row">
-      <span class="date-label">📅</span>
-      <input class="date-input-styled" type="date" id="dateInput" onchange="updateDate()">
-    </div>
-
-    <button class="save-btn" onclick="saveEntry()">✓ Save</button>
+    <button class="setup-btn" onclick="openSetup()">⚙️ Setup</button>
   </div>
 
-  <!-- ══ LOG ══ -->
-  <div class="page" id="page-log">
-    <div class="log-header">
-      <div class="log-header-label">Recent Entries</div>
-      <button class="refresh-btn" id="refreshBtn" onclick="fetchFromSheets(true)">
-        <span id="refreshIcon">↻</span> Sync
-      </button>
+  <div class="content">
+
+    <!-- ══ ADD ══ -->
+    <div class="page active" id="page-add">
+      <div class="sync-bar">
+        <div class="sync-dot" id="syncDot"></div>
+        <span id="syncStatus">Not connected to Google Sheets</span>
+      </div>
+      <div class="inout-toggle">
+        <button class="inout-btn out" id="btn-out" onclick="setDirection('out')">💸 Spent</button>
+        <button class="inout-btn in"  id="btn-in"  onclick="setDirection('in')">💰 Received</button>
+      </div>
+      <div class="amount-row">
+        <input class="amount-input" id="amountInput" type="number" inputmode="decimal" placeholder="0" min="0">
+        <div class="yen-badge">¥</div>
+      </div>
+      <div class="section-label">Method</div>
+      <div class="chip-grid" id="method-chips"></div>
+      <div class="section-label">Situation</div>
+      <div class="chip-grid" id="situation-chips"></div>
+      <div class="who-field" id="whoField">
+        <div class="section-label">With who?</div>
+        <input class="text-input" id="whoInput" type="text" placeholder="Name…">
+      </div>
+      <div class="section-label">Description <span style="opacity:0.4">(optional)</span></div>
+      <input class="text-input" id="descInput" type="text" placeholder="e.g. lunch ramen, Starbucks…" maxlength="60">
+      <div id="receiptSection">
+        <div class="section-label">Receipt photo <span style="opacity:0.4">(optional)</span></div>
+        <div class="receipt-btns">
+          <label class="receipt-upload-btn" for="receiptCamera">
+            📷<br>Take Photo
+            <input type="file" id="receiptCamera" accept="image/*" capture="environment" style="display:none" onchange="handleReceiptFile(this)">
+          </label>
+          <label class="receipt-upload-btn" for="receiptGallery">
+            🖼️<br>Choose Image
+            <input type="file" id="receiptGallery" accept="image/*" style="display:none" onchange="handleReceiptFile(this)">
+          </label>
+        </div>
+        <div class="receipt-preview-wrap" id="receiptPreviewWrap">
+          <img class="receipt-preview" id="receiptPreviewImg" src="" alt="receipt" onclick="openImgModal(this.src)">
+          <button class="receipt-remove-btn" onclick="removeReceipt()">✕</button>
+        </div>
+      </div>
+      <div class="section-label">Date</div>
+      <div class="date-row">
+        <span class="date-label">📅</span>
+        <input class="date-input-styled" type="date" id="dateInput" onchange="updateDate()">
+      </div>
+      <button class="save-btn" onclick="saveEntry()">✓ Save</button>
     </div>
-    <div id="entriesList"></div>
+
+    <!-- ══ LOG ══ -->
+    <div class="page" id="page-log">
+      <div class="log-header">
+        <div class="log-header-label">Recent Entries</div>
+        <button class="refresh-btn" id="refreshBtn" onclick="fetchFromSheets(true)">
+          <span id="refreshIcon">↻</span> Sync
+        </button>
+      </div>
+      <div id="entriesList"></div>
+    </div>
+
+    <!-- ══ SUMMARY ══ -->
+    <div class="page" id="page-summary">
+      <div class="month-picker">
+        <button class="month-nav" onclick="changeMonth(-1)">‹</button>
+        <div class="month-label" id="summaryMonthLabel"></div>
+        <button class="month-nav" onclick="changeMonth(1)">›</button>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="summary-card-label">💸 Total Spent</div>
+          <div class="summary-card-value out" id="sumSpent">¥0</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card-label">💰 Total Received</div>
+          <div class="summary-card-value in" id="sumReceived">¥0</div>
+        </div>
+        <div class="summary-card" style="grid-column:span 2">
+          <div class="summary-card-label">📈 Net Balance</div>
+          <div class="summary-card-value net" id="sumNet">¥0</div>
+        </div>
+      </div>
+      <div class="section-label" style="margin-top:0">Spending by Situation</div>
+      <div class="bar-chart" id="situationChart"></div>
+      <div class="section-label">Spending by Method</div>
+      <div class="bar-chart" id="methodChart"></div>
+      <button class="pdf-btn" onclick="printSummary()">🖨 Print / Save as PDF</button>
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- Bottom Tab Bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-add" onclick="switchTab('add')">
+      <span class="tab-icon">➕</span><span>Add</span>
+    </button>
+    <button class="tab-btn" id="tab-log" onclick="switchTab('log')">
+      <span class="tab-icon">📋</span><span>Log</span>
+    </button>
+    <button class="tab-btn" id="tab-summary" onclick="switchTab('summary')">
+      <span class="tab-icon">📊</span><span>Summary</span>
+    </button>
   </div>
 
-  <!-- ══ SUMMARY ══ -->
-  <div class="page" id="page-summary">
-    <div class="month-picker">
-      <button class="month-nav" onclick="changeMonth(-1)">‹</button>
-      <div class="month-label" id="summaryMonthLabel"></div>
-      <button class="month-nav" onclick="changeMonth(1)">›</button>
-    </div>
-    <div class="summary-grid">
-      <div class="summary-card">
-        <div class="summary-card-label">💸 Total Spent</div>
-        <div class="summary-card-value out" id="sumSpent">¥0</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-card-label">💰 Total Received</div>
-        <div class="summary-card-value in" id="sumReceived">¥0</div>
-      </div>
-      <div class="summary-card" style="grid-column:span 2">
-        <div class="summary-card-label">📈 Net Balance</div>
-        <div class="summary-card-value net" id="sumNet">¥0</div>
-      </div>
-    </div>
-    <div class="section-label" style="margin-top:0">Spending by Situation</div>
-    <div class="bar-chart" id="situationChart"></div>
-    <div class="section-label">Spending by Method</div>
-    <div class="bar-chart" id="methodChart"></div>
-    <button class="pdf-btn" onclick="printSummary()">🖨 Print / Save as PDF</button>
-  </div>
-
-</div>
-
-<!-- ── Bottom Tab Bar ── -->
-<div class="tab-bar">
-  <button class="tab-btn active" id="tab-add" onclick="switchTab('add')">
-    <span class="tab-icon">➕</span><span>Add</span>
-  </button>
-  <button class="tab-btn" id="tab-log" onclick="switchTab('log')">
-    <span class="tab-icon">📋</span><span>Log</span>
-  </button>
-  <button class="tab-btn" id="tab-summary" onclick="switchTab('summary')">
-    <span class="tab-icon">📊</span><span>Summary</span>
-  </button>
-</div>
+</div><!-- /app-wrap -->
 
 <!-- Image modal -->
 <div class="img-modal" id="imgModal" onclick="closeImgModal()">
@@ -393,27 +498,217 @@
     <p style="margin-top:8px">Don't have one yet? Open the <strong>SETUP GUIDE</strong> file for step-by-step instructions.</p>
     <button class="setup-save-btn" onclick="saveScriptUrl()">Save & Connect</button>
     <button style="width:100%;margin-top:8px;padding:12px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;font-size:13px" onclick="closeSetup()">Cancel</button>
+    <hr style="border:none;border-top:1px solid var(--border);margin:18px 0">
+    <p style="margin-bottom:8px">🔐 Change your lock PIN:</p>
+    <button style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--purple);cursor:pointer;font-size:13px;font-weight:600" onclick="closeSetup();startChangePIN()">Change PIN</button>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-// ══ State ══
+// ══════════════════════════════════════════════════
+//  PIN LOCK LOGIC
+// ══════════════════════════════════════════════════
+const PIN_KEY     = 'mt_pin';       // stored in localStorage
+const AUTH_KEY    = 'mt_authed';    // stored in sessionStorage (cleared on browser close)
+const PIN_LENGTH  = 4;
+
+let pinMode    = 'unlock';   // 'unlock' | 'setup' | 'change-old' | 'change-new' | 'change-confirm'
+let pinBuffer  = '';         // digits entered so far
+let pinPending = '';         // for confirm step (stores first entry)
+
+function initPIN() {
+  const savedPIN = localStorage.getItem(PIN_KEY);
+  const authed   = sessionStorage.getItem(AUTH_KEY);
+
+  if (!savedPIN) {
+    // First ever open — let user set a PIN
+    enterMode('setup');
+  } else if (authed === '1') {
+    // Already authenticated this session
+    unlockApp();
+  } else {
+    // Has PIN but not authenticated yet
+    enterMode('unlock');
+  }
+}
+
+function enterMode(mode) {
+  pinMode   = mode;
+  pinBuffer = '';
+  pinPending = '';
+  updateDots();
+  clearPinError();
+
+  const title    = document.getElementById('pinTitle');
+  const sub      = document.getElementById('pinSub');
+  const stepBadge= document.getElementById('pinStep');
+  const changeLnk= document.getElementById('pinChangeLink');
+
+  if (mode === 'setup') {
+    document.querySelector('.pin-logo').textContent = '🌸';
+    title.textContent = 'Create your PIN';
+    sub.textContent   = 'Choose a 4-digit PIN to protect your tracker.';
+    stepBadge.textContent = 'Step 1 of 2 — Set PIN';
+    stepBadge.style.display = 'inline-block';
+    changeLnk.style.display = 'none';
+  } else if (mode === 'setup-confirm') {
+    title.textContent = 'Confirm PIN';
+    sub.textContent   = 'Enter the same PIN again to confirm.';
+    stepBadge.textContent = 'Step 2 of 2 — Confirm PIN';
+    stepBadge.style.display = 'inline-block';
+    changeLnk.style.display = 'none';
+  } else if (mode === 'unlock') {
+    document.querySelector('.pin-logo').textContent = '🔒';
+    title.textContent = 'Welcome back';
+    sub.textContent   = 'Enter your PIN to unlock Money Tracker.';
+    stepBadge.style.display = 'none';
+    changeLnk.style.display = 'inline-block';
+  } else if (mode === 'change-old') {
+    document.querySelector('.pin-logo').textContent = '🔐';
+    title.textContent = 'Change PIN';
+    sub.textContent   = 'Enter your current PIN first.';
+    stepBadge.style.display = 'none';
+    changeLnk.style.display = 'none';
+  } else if (mode === 'change-new') {
+    title.textContent = 'New PIN';
+    sub.textContent   = 'Choose a new 4-digit PIN.';
+    stepBadge.textContent = 'Step 1 of 2 — New PIN';
+    stepBadge.style.display = 'inline-block';
+    changeLnk.style.display = 'none';
+  } else if (mode === 'change-confirm') {
+    title.textContent = 'Confirm new PIN';
+    sub.textContent   = 'Enter the new PIN once more.';
+    stepBadge.textContent = 'Step 2 of 2 — Confirm';
+    stepBadge.style.display = 'inline-block';
+    changeLnk.style.display = 'none';
+  }
+}
+
+function pinKey(digit) {
+  if (pinBuffer.length >= PIN_LENGTH) return;
+  pinBuffer += digit;
+  updateDots();
+  if (pinBuffer.length === PIN_LENGTH) {
+    setTimeout(handlePINComplete, 120); // tiny delay so last dot shows
+  }
+}
+
+function pinDel() {
+  if (!pinBuffer.length) return;
+  pinBuffer = pinBuffer.slice(0, -1);
+  updateDots();
+  clearPinError();
+}
+
+function updateDots() {
+  for (let i = 0; i < PIN_LENGTH; i++) {
+    const dot = document.getElementById('d' + i);
+    dot.classList.toggle('filled', i < pinBuffer.length);
+    dot.classList.remove('error');
+  }
+}
+
+function handlePINComplete() {
+  if (pinMode === 'unlock') {
+    const saved = localStorage.getItem(PIN_KEY);
+    if (pinBuffer === saved) {
+      sessionStorage.setItem(AUTH_KEY, '1');
+      unlockApp();
+    } else {
+      pinError('Wrong PIN — try again');
+    }
+
+  } else if (pinMode === 'setup') {
+    pinPending = pinBuffer;
+    enterMode('setup-confirm');
+
+  } else if (pinMode === 'setup-confirm') {
+    if (pinBuffer === pinPending) {
+      localStorage.setItem(PIN_KEY, pinBuffer);
+      sessionStorage.setItem(AUTH_KEY, '1');
+      unlockApp();
+      showToast('PIN set! 🔒','#7fff7f');
+    } else {
+      pinError('PINs don\'t match — try again');
+      setTimeout(() => enterMode('setup'), 900);
+    }
+
+  } else if (pinMode === 'change-old') {
+    const saved = localStorage.getItem(PIN_KEY);
+    if (pinBuffer === saved) {
+      enterMode('change-new');
+    } else {
+      pinError('Wrong PIN');
+    }
+
+  } else if (pinMode === 'change-new') {
+    pinPending = pinBuffer;
+    enterMode('change-confirm');
+
+  } else if (pinMode === 'change-confirm') {
+    if (pinBuffer === pinPending) {
+      localStorage.setItem(PIN_KEY, pinBuffer);
+      // Go back to app
+      document.getElementById('pinScreen').classList.add('hidden');
+      showToast('PIN changed! 🔒','#7fff7f');
+    } else {
+      pinError('PINs don\'t match');
+      setTimeout(() => enterMode('change-new'), 900);
+    }
+  }
+}
+
+function pinError(msg) {
+  document.getElementById('pinError').textContent = msg;
+  for (let i = 0; i < PIN_LENGTH; i++) {
+    document.getElementById('d' + i).classList.add('error');
+  }
+  document.getElementById('pinDots').classList.add('shake');
+  setTimeout(() => {
+    document.getElementById('pinDots').classList.remove('shake');
+    pinBuffer = '';
+    updateDots();
+  }, 450);
+}
+
+function clearPinError() {
+  document.getElementById('pinError').textContent = '';
+}
+
+function unlockApp() {
+  const ps = document.getElementById('pinScreen');
+  ps.classList.add('hidden');
+  setTimeout(() => { ps.style.display = 'none'; }, 380);
+  document.getElementById('appWrap').classList.add('visible');
+  initApp();
+}
+
+function startChangePIN() {
+  // Show the PIN screen in change-old mode (on top of the app)
+  const ps = document.getElementById('pinScreen');
+  ps.style.display = 'flex';
+  ps.classList.remove('hidden');
+  enterMode('change-old');
+}
+
+// ══════════════════════════════════════════════════
+//  APP STATE & CONFIG
+// ══════════════════════════════════════════════════
 let state = { direction: null, method: null, situation: null, receiptImage: null, date: todayStr() };
 let entries    = JSON.parse(localStorage.getItem('mt_entries') || '[]');
 let scriptUrl  = localStorage.getItem('mt_scriptUrl') || '';
 let summaryMonth = new Date();
 let fetching   = false;
 
-// ══ Config ══
 const METHODS_OUT    = ['💵 Cash','📱 PayPay','🚃 PASMO','💳 Credit Card','❓ Other'];
 const METHODS_IN     = ['💵 Cash','📱 PayPay','🚃 PASMO','🏦 Bank Transfer','❓ Other'];
 const SITUATIONS_OUT = ['🛒 Real world','📱 App/Game','🌐 Online shop','🤝 Lend to friend','❓ Other'];
 const SITUATIONS_IN  = ['🤝 Got money back','💼 Income','🎁 Tip / Bonus','📥 Borrowed from someone','❓ Other'];
 
-// ══ Init ══
-function init() {
+// ── Init app (called after PIN unlock) ──
+function initApp() {
   document.getElementById('headerDate').textContent =
     new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   document.getElementById('dateInput').value = todayStr();
@@ -423,31 +718,33 @@ function init() {
   renderSummary();
 }
 
-// ══ Helpers ══
+// ══════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 function updateDate() { state.date = document.getElementById('dateInput').value; }
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-// Normalize a date value that might come from Google Sheets as a Date object serialised to ISO
 function normalizeDate(d) {
   if (!d) return todayStr();
   const s = String(d);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;          // already YYYY-MM-DD
-  try { return new Date(s).toLocaleDateString('en-CA', {timeZone:'Asia/Tokyo'}); } // en-CA = YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  try { return new Date(s).toLocaleDateString('en-CA', {timeZone:'Asia/Tokyo'}); }
   catch(e) { return s.split('T')[0]; }
 }
-// Normalize savedAt strings from Sheets ("YYYY-MM-DD HH:MM:SS" JST) to ISO with tz offset
 function normalizeISO(s) {
   if (!s) return new Date().toISOString();
   s = String(s);
-  if (s.includes('Z') || /[+-]\d{2}:\d{2}$/.test(s)) return s; // already has tz
-  if (s.includes(' ')) return s.replace(' ','T') + '+09:00';    // Sheets JST format
+  if (s.includes('Z') || /[+-]\d{2}:\d{2}$/.test(s)) return s;
+  if (s.includes(' ')) return s.replace(' ','T') + '+09:00';
   if (s.includes('T')) return s + '+09:00';
   return s;
 }
 
-// ══ Direction ══
+// ══════════════════════════════════════════════════
+//  DIRECTION / CHIPS
+// ══════════════════════════════════════════════════
 function setDirection(dir) {
   state.direction = dir; state.method = null; state.situation = null;
   document.getElementById('btn-out').classList.toggle('active', dir==='out');
@@ -457,8 +754,6 @@ function setDirection(dir) {
   updateWhoField();
   document.getElementById('receiptSection').style.display = dir==='out' ? 'block' : 'none';
 }
-
-// ══ Chips ══
 function renderChips(containerId, items, key) {
   document.getElementById(containerId).innerHTML = items.map((item,i) => {
     const active = state[key] === item;
@@ -480,7 +775,9 @@ function updateWhoField() {
   document.getElementById('whoField').classList.toggle('show', show);
 }
 
-// ══ Receipt ══
+// ══════════════════════════════════════════════════
+//  RECEIPT
+// ══════════════════════════════════════════════════
 function handleReceiptFile(input) {
   const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
@@ -508,49 +805,40 @@ function removeReceipt() {
   document.getElementById('receiptPreviewWrap').classList.remove('show');
 }
 
-// ══ Save ══
+// ══════════════════════════════════════════════════
+//  SAVE
+// ══════════════════════════════════════════════════
 async function saveEntry() {
   const amount = parseFloat(document.getElementById('amountInput').value);
   if (!amount||amount<=0) { showToast('Enter an amount ⚠️','#ffcc44'); return; }
-  if (!state.method)      { showToast('Pick a method ⚠️','#ffcc44');  return; }
+  if (!state.method)      { showToast('Pick a method ⚠️','#ffcc44');   return; }
   if (!state.situation)   { showToast('Pick a situation ⚠️','#ffcc44'); return; }
 
   const entry = {
-    id:           Date.now(),
-    direction:    state.direction,
-    amount,
-    currency:     'JPY',
-    method:       state.method,
-    situation:    state.situation,
-    desc:         document.getElementById('descInput').value.trim(),
+    id: Date.now(), direction: state.direction, amount, currency:'JPY',
+    method: state.method, situation: state.situation,
+    desc: document.getElementById('descInput').value.trim(),
     receiptImage: state.receiptImage,
-    who:          document.getElementById('whoInput').value.trim(),
-    date:         state.date,
-    savedAt:      new Date().toISOString()
+    who:  document.getElementById('whoInput').value.trim(),
+    date: state.date, savedAt: new Date().toISOString()
   };
-
   entries.unshift(entry);
   localStorage.setItem('mt_entries', JSON.stringify(entries));
 
   if (scriptUrl) {
     setSyncStatus('loading','Syncing…');
     try {
-      await fetch(scriptUrl, {
-        method:'POST', body:JSON.stringify(entry),
-        headers:{'Content-Type':'text/plain'}, mode:'no-cors'
-      });
+      await fetch(scriptUrl, { method:'POST', body:JSON.stringify(entry),
+        headers:{'Content-Type':'text/plain'}, mode:'no-cors' });
       setSyncStatus('ok','Synced to Google Sheets ✓');
-    } catch(e) {
-      setSyncStatus('error','Sync failed — saved locally');
-    }
+    } catch(e) { setSyncStatus('error','Sync failed — saved locally'); }
   }
 
-  // Reset
   document.getElementById('amountInput').value = '';
   document.getElementById('descInput').value   = '';
   document.getElementById('whoInput').value    = '';
-  state.method = null; state.situation = null; state.receiptImage = null;
-  document.getElementById('receiptPreviewImg').src = '';
+  state.method=null; state.situation=null; state.receiptImage=null;
+  document.getElementById('receiptPreviewImg').src='';
   document.getElementById('receiptPreviewWrap').classList.remove('show');
   renderChips('method-chips',    state.direction==='out'?METHODS_OUT:METHODS_IN,       'method');
   renderChips('situation-chips', state.direction==='out'?SITUATIONS_OUT:SITUATIONS_IN, 'situation');
@@ -559,39 +847,32 @@ async function saveEntry() {
   setTimeout(()=>switchTab('log'), 700);
 }
 
-// ══ Fetch from Sheets (cross-device sync) ══
+// ══════════════════════════════════════════════════
+//  FETCH FROM SHEETS (cross-device sync)
+// ══════════════════════════════════════════════════
 async function fetchFromSheets(manual=false) {
   if (!scriptUrl || fetching) return;
   fetching = true;
-
   const btn  = document.getElementById('refreshBtn');
   const icon = document.getElementById('refreshIcon');
   if (btn)  btn.classList.add('loading');
   if (icon) icon.innerHTML = '<span class="spin">↻</span>';
 
-  // Show skeletons if list is empty
   const list = document.getElementById('entriesList');
   if (!entries.length) {
     list.innerHTML = [1,2,3].map(()=>`
       <div class="skeleton-card">
         <div class="sk-icon"></div>
-        <div class="sk-lines">
-          <div class="sk-line"></div>
-          <div class="sk-line short"></div>
-        </div>
+        <div class="sk-lines"><div class="sk-line"></div><div class="sk-line short"></div></div>
       </div>`).join('');
   }
 
   try {
     const res  = await fetch(scriptUrl + '?t=' + Date.now(), { redirect:'follow' });
     const data = await res.json();
-
     if (data.entries && Array.isArray(data.entries)) {
-      // Build a map of local receiptImages by entry id (to preserve base64 on this device)
       const imgMap = {};
       entries.forEach(e => { if (e.receiptImage) imgMap[String(e.id)] = e.receiptImage; });
-
-      // Merge: Sheets is source of truth; local provides receiptImage base64
       entries = data.entries.map(e => ({
         id:           e.id,
         direction:    e.direction  || 'out',
@@ -606,7 +887,6 @@ async function fetchFromSheets(manual=false) {
         driveLink:    e.driveLink || '',
         receiptImage: imgMap[String(e.id)] || null
       }));
-
       localStorage.setItem('mt_entries', JSON.stringify(entries));
       renderEntries();
       renderSummary();
@@ -622,15 +902,16 @@ async function fetchFromSheets(manual=false) {
   }
 }
 
-// ══ Render Log ══
+// ══════════════════════════════════════════════════
+//  RENDER LOG
+// ══════════════════════════════════════════════════
 function renderEntries() {
   const list = document.getElementById('entriesList');
   if (!entries.length) {
     list.innerHTML = `<div class="empty-state">
       <div class="emoji">🌸</div>
       <p>No entries yet.<br><span style="font-size:12px">Tap ➕ to add your first one!</span></p>
-    </div>`;
-    return;
+    </div>`; return;
   }
   list.innerHTML = entries.slice(0,60).map(e => {
     const icon    = e.direction==='out' ? '💸' : '💰';
@@ -642,23 +923,19 @@ function renderEntries() {
     const timeStr = savedAt.toLocaleTimeString('en-US',
                      {hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Tokyo'});
     const method  = e.method ? e.method.replace(/^\S+\s/,'') : '';
-
     let receiptEl = '';
     if (e.receiptImage) {
-      // Local base64 – show inline thumbnail
       receiptEl = `<img class="entry-receipt-thumb" src="${e.receiptImage}"
         onclick="openImgModal('${e.receiptImage.replace(/'/g,'')}')">`;
     } else if (e.driveLink) {
-      // Only Drive link (entry from another device) – link to Drive
       receiptEl = `<a class="entry-receipt-link" href="${esc(e.driveLink)}"
         target="_blank" rel="noopener" title="View receipt in Drive">🖼️</a>`;
     }
-
     return `<div class="entry-card" id="card-${e.id}">
       <div class="entry-icon ${e.direction}">${icon}</div>
       <div class="entry-info">
         <div class="entry-desc">${esc(label)}</div>
-        <div class="entry-meta">${esc(method)} · ${dateStr} ${timeStr}${e.who ? ' · '+esc(e.who) : ''}</div>
+        <div class="entry-meta">${esc(method)} · ${dateStr} ${timeStr}${e.who?' · '+esc(e.who):''}</div>
         <div class="confirm-row" id="confirm-${e.id}" style="display:none">
           <span style="font-size:12px;color:var(--accent-out)">Delete this entry?</span>
           <button class="confirm-yes" onclick="confirmDelete('${e.id}')">Yes, delete</button>
@@ -672,73 +949,66 @@ function renderEntries() {
   }).join('');
 }
 
-// ══ Delete ══
+// ══════════════════════════════════════════════════
+//  DELETE
+// ══════════════════════════════════════════════════
 function askDelete(id) {
-  document.querySelectorAll('.confirm-row').forEach(r => r.style.display='none');
-  document.querySelectorAll('.entry-card').forEach(c => c.classList.remove('confirming'));
-  const cr = document.getElementById('confirm-'+id);
-  const cd = document.getElementById('card-'+id);
-  if (cr) cr.style.display = 'flex';
+  document.querySelectorAll('.confirm-row').forEach(r=>r.style.display='none');
+  document.querySelectorAll('.entry-card').forEach(c=>c.classList.remove('confirming'));
+  const cr=document.getElementById('confirm-'+id), cd=document.getElementById('card-'+id);
+  if (cr) cr.style.display='flex';
   if (cd) cd.classList.add('confirming');
 }
 function cancelDelete(id) {
-  const cr = document.getElementById('confirm-'+id);
-  const cd = document.getElementById('card-'+id);
-  if (cr) cr.style.display = 'none';
+  const cr=document.getElementById('confirm-'+id), cd=document.getElementById('card-'+id);
+  if (cr) cr.style.display='none';
   if (cd) cd.classList.remove('confirming');
 }
 async function confirmDelete(id) {
-  entries = entries.filter(e => String(e.id) !== String(id));
+  entries = entries.filter(e=>String(e.id)!==String(id));
   localStorage.setItem('mt_entries', JSON.stringify(entries));
   renderEntries();
   showToast('Deleted 🗑','#ffcc44');
   if (scriptUrl) {
     try {
-      await fetch(scriptUrl, {
-        method:'POST', body:JSON.stringify({action:'delete', id}),
-        headers:{'Content-Type':'text/plain'}, mode:'no-cors'
-      });
+      await fetch(scriptUrl, { method:'POST', body:JSON.stringify({action:'delete',id}),
+        headers:{'Content-Type':'text/plain'}, mode:'no-cors' });
     } catch(e) { /* silent */ }
   }
 }
 
-// ══ Summary ══
+// ══════════════════════════════════════════════════
+//  SUMMARY
+// ══════════════════════════════════════════════════
 function renderSummary() {
-  const y = summaryMonth.getFullYear();
-  const m = summaryMonth.getMonth();
+  const y=summaryMonth.getFullYear(), m=summaryMonth.getMonth();
   document.getElementById('summaryMonthLabel').textContent =
     summaryMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
-
-  const monthE   = entries.filter(e => {
-    const d = new Date(e.date+'T12:00:00');
-    return d.getFullYear()===y && d.getMonth()===m;
-  });
+  const monthE   = entries.filter(e=>{ const d=new Date(e.date+'T12:00:00'); return d.getFullYear()===y&&d.getMonth()===m; });
   const spent    = monthE.filter(e=>e.direction==='out').reduce((s,e)=>s+Number(e.amount),0);
   const received = monthE.filter(e=>e.direction==='in' ).reduce((s,e)=>s+Number(e.amount),0);
   const net      = received - spent;
-
   document.getElementById('sumSpent').textContent    = '¥'+spent.toLocaleString();
   document.getElementById('sumReceived').textContent = '¥'+received.toLocaleString();
-  const netEl = document.getElementById('sumNet');
+  const netEl=document.getElementById('sumNet');
   netEl.textContent = (net>=0?'+':'')+'¥'+Math.abs(net).toLocaleString();
   netEl.className   = 'summary-card-value net '+(net>=0?'pos':'neg');
-
   const sitMap={}, methMap={};
   monthE.filter(e=>e.direction==='out').forEach(e=>{
-    const sk = e.situation ? e.situation.replace(/^\S+\s/,'') : 'Other';
-    const mk = e.method    ? e.method.replace(/^\S+\s/,'')    : 'Other';
-    sitMap[sk]  = (sitMap[sk]||0)  + Number(e.amount);
-    methMap[mk] = (methMap[mk]||0) + Number(e.amount);
+    const sk=e.situation?e.situation.replace(/^\S+\s/,''):'Other';
+    const mk=e.method?e.method.replace(/^\S+\s/,''):'Other';
+    sitMap[sk]=(sitMap[sk]||0)+Number(e.amount);
+    methMap[mk]=(methMap[mk]||0)+Number(e.amount);
   });
-  renderBarChart('situationChart', sitMap,  spent, 'out');
-  renderBarChart('methodChart',    methMap, spent, 'out');
+  renderBarChart('situationChart',sitMap, spent,'out');
+  renderBarChart('methodChart',   methMap,spent,'out');
 }
-function renderBarChart(id, map, total, dir) {
-  const el = document.getElementById(id);
-  const sorted = Object.entries(map).sort((a,b)=>b[1]-a[1]);
-  if (!sorted.length) { el.innerHTML='<div style="color:var(--text-dim);font-size:13px;padding:8px 0">No data</div>'; return; }
-  el.innerHTML = sorted.map(([label,val])=>{
-    const pct = total>0 ? (val/total*100).toFixed(0) : 0;
+function renderBarChart(id,map,total,dir){
+  const el=document.getElementById(id);
+  const sorted=Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  if(!sorted.length){el.innerHTML='<div style="color:var(--text-dim);font-size:13px;padding:8px 0">No data</div>';return;}
+  el.innerHTML=sorted.map(([label,val])=>{
+    const pct=total>0?(val/total*100).toFixed(0):0;
     return `<div class="bar-row">
       <div class="bar-row-label">${esc(label)}</div>
       <div class="bar-track"><div class="bar-fill ${dir}" style="width:${pct}%"></div></div>
@@ -746,70 +1016,68 @@ function renderBarChart(id, map, total, dir) {
     </div>`;
   }).join('');
 }
-function changeMonth(delta) {
-  summaryMonth = new Date(summaryMonth.getFullYear(), summaryMonth.getMonth()+delta, 1);
+function changeMonth(delta){
+  summaryMonth=new Date(summaryMonth.getFullYear(),summaryMonth.getMonth()+delta,1);
   renderSummary();
 }
-function printSummary() { switchTab('summary'); setTimeout(()=>window.print(),200); }
+function printSummary(){ switchTab('summary'); setTimeout(()=>window.print(),200); }
 
-// ══ Sync / Setup ══
-function updateSyncStatus() {
-  if (scriptUrl) setSyncStatus('ok','Connected to Google Sheets ✓');
-  else           setSyncStatus('','Not connected — data saved locally');
+// ══════════════════════════════════════════════════
+//  SYNC / SETUP
+// ══════════════════════════════════════════════════
+function updateSyncStatus(){
+  if(scriptUrl) setSyncStatus('ok','Connected to Google Sheets ✓');
+  else          setSyncStatus('','Not connected — data saved locally');
 }
-function setSyncStatus(type, msg) {
-  const dot = document.getElementById('syncDot');
-  const txt = document.getElementById('syncStatus');
-  if (dot) dot.className = 'sync-dot'+(type?' '+type:'');
-  if (txt) txt.textContent = msg;
+function setSyncStatus(type,msg){
+  const dot=document.getElementById('syncDot'), txt=document.getElementById('syncStatus');
+  if(dot) dot.className='sync-dot'+(type?' '+type:'');
+  if(txt) txt.textContent=msg;
 }
-function openSetup()  {
-  document.getElementById('scriptUrlInput').value = scriptUrl;
+function openSetup(){
+  document.getElementById('scriptUrlInput').value=scriptUrl;
   document.getElementById('setupModal').classList.add('show');
 }
-function closeSetup() { document.getElementById('setupModal').classList.remove('show'); }
-function saveScriptUrl() {
-  const url = document.getElementById('scriptUrlInput').value.trim();
-  scriptUrl = url;
-  localStorage.setItem('mt_scriptUrl', url);
-  closeSetup();
-  updateSyncStatus();
-  showToast(url ? 'Connected! 🌸' : 'Disconnected','#7fff7f');
+function closeSetup(){ document.getElementById('setupModal').classList.remove('show'); }
+function saveScriptUrl(){
+  const url=document.getElementById('scriptUrlInput').value.trim();
+  scriptUrl=url; localStorage.setItem('mt_scriptUrl',url);
+  closeSetup(); updateSyncStatus();
+  showToast(url?'Connected! 🌸':'Disconnected','#7fff7f');
 }
 
-// ══ Image modal ══
-function openImgModal(src) {
-  document.getElementById('imgModalSrc').src = src;
-  document.getElementById('imgModal').classList.add('show');
-}
-function closeImgModal() { document.getElementById('imgModal').classList.remove('show'); }
+// ══════════════════════════════════════════════════
+//  IMAGE MODAL
+// ══════════════════════════════════════════════════
+function openImgModal(src){ document.getElementById('imgModalSrc').src=src; document.getElementById('imgModal').classList.add('show'); }
+function closeImgModal()  { document.getElementById('imgModal').classList.remove('show'); }
 
-// ══ Toast ══
-function showToast(msg, color='#7fff7f') {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.style.background = color;
-  t.style.color = (color==='#ffcc44'||color==='#ff6b9d') ? '#fff' : '#000';
-  t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2400);
+// ══════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════
+function showToast(msg,color='#7fff7f'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.background=color;
+  t.style.color=(color==='#ffcc44'||color==='#ff6b9d')?'#fff':'#000';
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2400);
 }
 
-// ══ Tabs ══
-function switchTab(tab) {
+// ══════════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════════
+function switchTab(tab){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   ['add','log','summary'].forEach(t=>{
-    const b = document.getElementById('tab-'+t);
-    if (b) b.classList.toggle('active', t===tab);
+    const b=document.getElementById('tab-'+t);
+    if(b) b.classList.toggle('active',t===tab);
   });
   document.getElementById('page-'+tab).classList.add('active');
-
-  if (tab==='log') {
-    renderEntries();
-    if (scriptUrl) fetchFromSheets(false); // auto-fetch silently on tab open
-  }
-  if (tab==='summary') renderSummary();
+  if(tab==='log'){ renderEntries(); if(scriptUrl) fetchFromSheets(false); }
+  if(tab==='summary') renderSummary();
 }
 
-init();
+// ── Boot ──
+initPIN();
 </script>
 </body>
 </html>
