@@ -79,6 +79,8 @@ function doPost(e) {
 
     if (data.action === 'delete') {
       deleteEntry(data.id);
+    } else if (data.action === 'update') {
+      updateEntry(data);
     } else {
       addEntry(data);
     }
@@ -131,6 +133,28 @@ function addEntry(data) {
     } catch (imgErr) {
       Logger.log('Image upload failed: ' + imgErr);
       // Row is already saved — just no Drive link
+    }
+  }
+}
+
+// ── Update entry (edit) ──
+function updateEntry(data) {
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) return;
+
+  const allData = sheet.getDataRange().getValues();
+  for (let i = 1; i < allData.length; i++) {
+    if (String(allData[i][0]) === String(data.id)) {
+      const row = i + 1; // 1-indexed
+      sheet.getRange(row, 2).setValue(data.date      || allData[i][1]);
+      sheet.getRange(row, 3).setValue(data.direction || allData[i][2]);
+      sheet.getRange(row, 4).setValue(Number(data.amount) || allData[i][3]);
+      sheet.getRange(row, 5).setValue(data.method    || allData[i][4]);
+      sheet.getRange(row, 6).setValue(data.situation || allData[i][5]);
+      sheet.getRange(row, 7).setValue(data.desc  !== undefined ? data.desc  : allData[i][6]);
+      sheet.getRange(row, 8).setValue(data.who   !== undefined ? data.who   : allData[i][7]);
+      return;
     }
   }
 }
