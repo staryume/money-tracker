@@ -595,10 +595,9 @@
     <p>Paste your Google Apps Script Web App URL below to sync data to your spreadsheet.</p>
     <input type="url" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/…/exec">
     <p style="margin-top:8px">Don't have one yet? Open the <strong>SETUP GUIDE</strong> file for step-by-step instructions.</p>
-    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
-    <p style="margin-bottom:8px;font-size:13px">📊 Google Sheet URL <span style="color:var(--text-dim)">(optional — for direct link)</span></p>
-    <input type="url" id="sheetUrlInput" placeholder="https://docs.google.com/spreadsheets/d/…/edit">
     <button class="setup-save-btn" onclick="saveScriptUrl()">Save & Connect</button>
+    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+    <button style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;font-size:13px" onclick="openOrSetSheet()">📊 Open Google Sheet</button>
     <button style="width:100%;margin-top:8px;padding:12px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;font-size:13px" onclick="closeSetup()">Cancel</button>
     <hr style="border:none;border-top:1px solid var(--border);margin:18px 0">
     <p style="margin-bottom:8px">🔐 Change your lock PIN:</p>
@@ -1331,15 +1330,12 @@ function setSyncStatus(type,msg){
 }
 function openSetup(){
   document.getElementById('scriptUrlInput').value=scriptUrl;
-  document.getElementById('sheetUrlInput').value=sheetUrl;
   document.getElementById('setupModal').classList.add('show');
 }
 function closeSetup(){ document.getElementById('setupModal').classList.remove('show'); }
 function saveScriptUrl(){
   const url=document.getElementById('scriptUrlInput').value.trim();
-  const surl=document.getElementById('sheetUrlInput').value.trim();
   scriptUrl=url; localStorage.setItem('mt_scriptUrl',url);
-  sheetUrl=surl; localStorage.setItem('mt_sheetUrl',surl);
   closeSetup(); updateSyncStatus(); updateSheetLink();
   showToast(url?'Connected! 🌸':'Disconnected','#7fff7f');
 }
@@ -1347,9 +1343,15 @@ function updateSheetLink(){
   const btn=document.getElementById('sheetLinkBtn');
   if(btn) btn.style.display=sheetUrl?'inline-flex':'none';
 }
-function openSheet(){
-  if(sheetUrl) window.open(sheetUrl,'_blank','noopener');
+function openOrSetSheet(){
+  if(sheetUrl){
+    window.open(sheetUrl,'_blank','noopener');
+  } else {
+    const url=(window.prompt('Paste your Google Sheet URL:') || '').trim();
+    if(url){ sheetUrl=url; localStorage.setItem('mt_sheetUrl',url); updateSheetLink(); window.open(url,'_blank','noopener'); }
+  }
 }
+function openSheet(){ openOrSetSheet(); }
 
 // ══════════════════════════════════════════════════
 //  IMAGE MODAL
