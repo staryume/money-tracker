@@ -103,6 +103,8 @@ function addEntry(data) {
 
   const now     = Utilities.formatDate(new Date(), TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
   const entryId = String(data.id);
+  // Use client-provided savedAt (which encodes user-chosen time) or fall back to server time
+  const savedAt = data.savedAt || now;
 
   // Always save the text row first (so data is never lost even if image fails)
   sheet.appendRow([
@@ -114,7 +116,7 @@ function addEntry(data) {
     data.situation  || '',
     data.desc       || '',
     data.who        || '',
-    now,             // Saved At (JST)
+    savedAt,         // Saved At (user-chosen time, JST)
     ''               // Drive link — filled in below if image upload succeeds
   ]);
 
@@ -152,8 +154,9 @@ function updateEntry(data) {
       sheet.getRange(row, 4).setValue(Number(data.amount) || allData[i][3]);
       sheet.getRange(row, 5).setValue(data.method    || allData[i][4]);
       sheet.getRange(row, 6).setValue(data.situation || allData[i][5]);
-      sheet.getRange(row, 7).setValue(data.desc  !== undefined ? data.desc  : allData[i][6]);
-      sheet.getRange(row, 8).setValue(data.who   !== undefined ? data.who   : allData[i][7]);
+      sheet.getRange(row, 7).setValue(data.desc    !== undefined ? data.desc    : allData[i][6]);
+      sheet.getRange(row, 8).setValue(data.who     !== undefined ? data.who     : allData[i][7]);
+      sheet.getRange(row, 9).setValue(data.savedAt !== undefined ? data.savedAt : allData[i][8]);
       return;
     }
   }

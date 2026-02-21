@@ -163,7 +163,8 @@
                 outline: none; transition: border-color 0.2s; margin-bottom: 4px; font-family: inherit; }
   .text-input:focus { border-color: var(--purple); }
   .text-input::placeholder { color: var(--text-dim); }
-  .who-field { display: none; } .who-field.show { display: block; }
+  .who-field  { display: none; } .who-field.show  { display: block; }
+  .card-field { display: none; } .card-field.show { display: block; }
 
   /* ── Date ── */
   .date-row { display: flex; align-items: center; gap: 10px; background: var(--card);
@@ -415,11 +416,16 @@
         <button class="inout-btn in"  id="btn-in"  onclick="setDirection('in')">💰 Received</button>
       </div>
       <div class="amount-row">
-        <input class="amount-input" id="amountInput" type="number" inputmode="decimal" placeholder="0" min="0">
         <div class="yen-badge">¥</div>
+        <input class="amount-input" id="amountInput" type="number" inputmode="decimal" placeholder="0" min="0">
       </div>
       <div class="section-label">Method</div>
       <div class="chip-grid" id="method-chips"></div>
+      <!-- Card sub-selector (shown only when Credit Card is selected) -->
+      <div class="card-field" id="cardField">
+        <div class="section-label">Which card? 💳</div>
+        <div class="chip-grid" id="card-chips"></div>
+      </div>
       <div class="section-label">Situation</div>
       <div class="chip-grid" id="situation-chips"></div>
       <div class="who-field" id="whoField">
@@ -445,10 +451,14 @@
           <button class="receipt-remove-btn" onclick="removeReceipt()">✕</button>
         </div>
       </div>
-      <div class="section-label">Date</div>
+      <div class="section-label">Date &amp; Time</div>
       <div class="date-row">
         <span class="date-label">📅</span>
         <input class="date-input-styled" type="date" id="dateInput" onchange="updateDate()">
+      </div>
+      <div class="date-row" style="margin-top:8px">
+        <span class="date-label">🕐</span>
+        <input class="date-input-styled" type="time" id="timeInput" onchange="updateTime()">
       </div>
       <button class="save-btn" onclick="saveEntry()">✓ Save</button>
     </div>
@@ -462,6 +472,14 @@
         </button>
       </div>
       <div id="entriesList"></div>
+      <div id="sheetLinkBar" style="display:none;text-align:center;padding:14px 0 20px">
+        <a id="sheetLinkBtn" href="#" target="_blank" rel="noopener"
+          style="display:inline-flex;align-items:center;gap:7px;padding:10px 20px;
+                 background:var(--card);border:1px solid var(--border);border-radius:14px;
+                 color:var(--text-dim);font-size:13px;text-decoration:none;">
+          📊 Open Google Sheets
+        </a>
+      </div>
     </div>
 
     <!-- ══ SUMMARY ══ -->
@@ -528,13 +546,18 @@
     <!-- Amount -->
     <div class="section-label">Amount</div>
     <div class="amount-row">
-      <input class="amount-input" id="editAmount" type="number" inputmode="decimal" placeholder="0" min="0">
       <div class="yen-badge">¥</div>
+      <input class="amount-input" id="editAmount" type="number" inputmode="decimal" placeholder="0" min="0">
     </div>
 
     <!-- Method -->
     <div class="section-label">Method</div>
     <div class="chip-grid" id="edit-method-chips"></div>
+    <!-- Card sub-selector -->
+    <div class="card-field" id="editCardField">
+      <div class="section-label">Which card? 💳</div>
+      <div class="chip-grid" id="edit-card-chips"></div>
+    </div>
 
     <!-- Situation -->
     <div class="section-label">Situation</div>
@@ -550,11 +573,15 @@
     <div class="section-label">Description <span style="opacity:0.4">(optional)</span></div>
     <input class="text-input" id="editDesc" type="text" placeholder="e.g. lunch ramen…" maxlength="60">
 
-    <!-- Date -->
-    <div class="section-label">Date</div>
-    <div class="date-row" style="margin-bottom:8px">
+    <!-- Date & Time -->
+    <div class="section-label">Date &amp; Time</div>
+    <div class="date-row">
       <span class="date-label">📅</span>
       <input class="date-input-styled" type="date" id="editDate">
+    </div>
+    <div class="date-row" style="margin-top:8px;margin-bottom:8px">
+      <span class="date-label">🕐</span>
+      <input class="date-input-styled" type="time" id="editTime">
     </div>
   </div>
 </div>
@@ -572,6 +599,9 @@
     <p>Paste your Google Apps Script Web App URL below to sync data to your spreadsheet.</p>
     <input type="url" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/…/exec">
     <p style="margin-top:8px">Don't have one yet? Open the <strong>SETUP GUIDE</strong> file for step-by-step instructions.</p>
+    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+    <p style="margin-bottom:8px;font-size:13px">📊 Google Sheet URL <span style="color:var(--text-dim)">(optional — for direct link)</span></p>
+    <input type="url" id="sheetUrlInput" placeholder="https://docs.google.com/spreadsheets/d/…/edit">
     <button class="setup-save-btn" onclick="saveScriptUrl()">Save & Connect</button>
     <button style="width:100%;margin-top:8px;padding:12px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;font-size:13px" onclick="closeSetup()">Cancel</button>
     <hr style="border:none;border-top:1px solid var(--border);margin:18px 0">
@@ -774,25 +804,29 @@ function startChangePIN() {
 // ══════════════════════════════════════════════════
 //  APP STATE & CONFIG
 // ══════════════════════════════════════════════════
-let state = { direction: null, method: null, situation: null, receiptImage: null, date: todayStr() };
+let state = { direction: null, method: null, situation: null, card: null, receiptImage: null, date: todayStr(), time: nowTimeStr() };
 let entries    = JSON.parse(localStorage.getItem('mt_entries') || '[]');
 let scriptUrl  = localStorage.getItem('mt_scriptUrl') || '';
+let sheetUrl   = localStorage.getItem('mt_sheetUrl')  || '';
 let summaryMonth = new Date();
 let fetching   = false;
-let editState  = { id: null, direction: 'out', method: null, situation: null };
+let editState  = { id: null, direction: 'out', method: null, situation: null, card: null };
 
 const METHODS_OUT    = ['💵 Cash','📱 PayPay','🚃 PASMO','💳 Credit Card','❓ Other'];
 const METHODS_IN     = ['💵 Cash','📱 PayPay','🚃 PASMO','🏦 Bank Transfer','❓ Other'];
 const SITUATIONS_OUT = ['🛒 Real world','📱 App/Game','🌐 Online shop','🤝 Lend to friend','❓ Other'];
 const SITUATIONS_IN  = ['🤝 Got money back','💼 Income','🎁 Tip / Bonus','📥 Borrowed from someone','❓ Other'];
+const CREDIT_CARDS   = ['Rakuten','JCB ANA','JCB Gold','AMEX','Granblue','Dahsing'];
 
 // ── Init app (called after PIN unlock) ──
 function initApp() {
   document.getElementById('headerDate').textContent =
     new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   document.getElementById('dateInput').value = todayStr();
+  document.getElementById('timeInput').value = nowTimeStr();
   setDirection('out');
   updateSyncStatus();
+  updateSheetLink();
   renderEntries();
   renderSummary();
 }
@@ -801,7 +835,12 @@ function initApp() {
 //  HELPERS
 // ══════════════════════════════════════════════════
 function todayStr() { return new Date().toISOString().split('T')[0]; }
+function nowTimeStr() {
+  const now = new Date();
+  return now.toLocaleTimeString('en-CA', { hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Asia/Tokyo' });
+}
 function updateDate() { state.date = document.getElementById('dateInput').value; }
+function updateTime() { state.time = document.getElementById('timeInput').value; }
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -825,11 +864,12 @@ function normalizeISO(s) {
 //  DIRECTION / CHIPS
 // ══════════════════════════════════════════════════
 function setDirection(dir) {
-  state.direction = dir; state.method = null; state.situation = null;
+  state.direction = dir; state.method = null; state.situation = null; state.card = null;
   document.getElementById('btn-out').classList.toggle('active', dir==='out');
   document.getElementById('btn-in').classList.toggle('active',  dir==='in');
   renderChips('method-chips',    dir==='out' ? METHODS_OUT    : METHODS_IN,    'method');
   renderChips('situation-chips', dir==='out' ? SITUATIONS_OUT : SITUATIONS_IN, 'situation');
+  updateCardField();
   updateWhoField();
   document.getElementById('receiptSection').style.display = 'block'; // show for both in & out
 }
@@ -846,12 +886,30 @@ function selectChip(key, idx) {
     : (state.direction==='out'?SITUATIONS_OUT:SITUATIONS_IN);
   state[key] = list[idx];
   renderChips(key==='method'?'method-chips':'situation-chips', list, key);
+  if (key==='method')    updateCardField();
   if (key==='situation') updateWhoField();
 }
 function updateWhoField() {
   const show = state.situation &&
     ['Lend to friend','Got money back','Borrowed from someone'].some(s=>state.situation.includes(s));
   document.getElementById('whoField').classList.toggle('show', show);
+}
+function updateCardField() {
+  const isCC = state.method && state.method.includes('Credit Card');
+  if (!isCC) state.card = null;
+  document.getElementById('cardField').classList.toggle('show', !!isCC);
+  if (isCC) renderCardChips();
+}
+function renderCardChips() {
+  document.getElementById('card-chips').innerHTML = CREDIT_CARDS.map((c, i) => {
+    const active = state.card === c;
+    return `<button class="chip${active?' active '+state.direction+'-mode':''}"
+      onclick="selectCard(${i})">${c}</button>`;
+  }).join('');
+}
+function selectCard(idx) {
+  state.card = CREDIT_CARDS[idx];
+  renderCardChips();
 }
 
 // ══════════════════════════════════════════════════
@@ -893,13 +951,21 @@ async function saveEntry() {
   if (!state.method)      { showToast('Pick a method ⚠️','#ffcc44');   return; }
   if (!state.situation)   { showToast('Pick a situation ⚠️','#ffcc44'); return; }
 
+  // If Credit Card chosen, embed card name into method for Sheets display
+  const methodFull = (state.method && state.method.includes('Credit Card') && state.card)
+    ? state.method + ' — ' + state.card
+    : state.method;
+
   const entry = {
     id: Date.now(), direction: state.direction, amount, currency:'JPY',
-    method: state.method, situation: state.situation,
+    method: methodFull, situation: state.situation,
     desc: document.getElementById('descInput').value.trim(),
     receiptImage: state.receiptImage,
     who:  document.getElementById('whoInput').value.trim(),
-    date: state.date, savedAt: new Date().toISOString()
+    date: state.date,
+    savedAt: (state.date && state.time)
+      ? `${state.date}T${state.time}:00+09:00`
+      : new Date().toISOString()
   };
   entries.unshift(entry);
   localStorage.setItem('mt_entries', JSON.stringify(entries));
@@ -916,11 +982,14 @@ async function saveEntry() {
   document.getElementById('amountInput').value = '';
   document.getElementById('descInput').value   = '';
   document.getElementById('whoInput').value    = '';
-  state.method=null; state.situation=null; state.receiptImage=null;
+  state.method=null; state.situation=null; state.card=null; state.receiptImage=null;
+  state.time = nowTimeStr();
+  document.getElementById('timeInput').value = state.time;
   document.getElementById('receiptPreviewImg').src='';
   document.getElementById('receiptPreviewWrap').classList.remove('show');
   renderChips('method-chips',    state.direction==='out'?METHODS_OUT:METHODS_IN,       'method');
   renderChips('situation-chips', state.direction==='out'?SITUATIONS_OUT:SITUATIONS_IN, 'situation');
+  updateCardField();
   updateWhoField();
   showToast('Saved! 🌸','#7fff7f');
   setTimeout(()=>switchTab('log'), 700);
@@ -1001,6 +1070,7 @@ function renderEntries() {
     const savedAt = e.savedAt ? new Date(e.savedAt) : new Date(e.date+'T12:00:00');
     const timeStr = savedAt.toLocaleTimeString('en-US',
                      {hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Tokyo'});
+    // method may be "💳 Credit Card — Rakuten" — strip emoji prefix, keep card name
     const method  = e.method ? e.method.replace(/^\S+\s/,'') : '';
     let receiptEl = '';
     if (e.receiptImage) {
@@ -1064,18 +1134,34 @@ function openEdit(id) {
   const e = entries.find(e => String(e.id) === String(id));
   if (!e) return;
 
-  editState = { id: e.id, direction: e.direction, method: e.method, situation: e.situation };
+  // Parse card from method string (e.g. "💳 Credit Card — Rakuten")
+  let parsedMethod = e.method || null;
+  let parsedCard   = null;
+  if (parsedMethod && parsedMethod.includes(' — ')) {
+    const parts = parsedMethod.split(' — ');
+    parsedMethod = parts[0].trim();
+    parsedCard   = parts[1].trim();
+  }
+
+  editState = { id: e.id, direction: e.direction, method: parsedMethod, situation: e.situation, card: parsedCard };
 
   document.getElementById('editAmount').value = e.amount;
   document.getElementById('editDesc').value   = e.desc || '';
   document.getElementById('editWho').value    = e.who  || '';
   document.getElementById('editDate').value   = e.date;
+  // Pre-fill time from savedAt (convert to JST HH:MM)
+  const _savedAtDate = e.savedAt ? new Date(normalizeISO(e.savedAt)) : null;
+  document.getElementById('editTime').value = _savedAtDate
+    ? _savedAtDate.toLocaleTimeString('en-CA', {hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Asia/Tokyo'})
+    : nowTimeStr();
 
-  setEditDirection(e.direction);          // renders chips + sets active direction
-  editState.method    = e.method;         // re-apply after setEditDirection reset them
+  setEditDirection(e.direction);            // renders chips + sets active direction
+  editState.method    = parsedMethod;       // re-apply after setEditDirection reset them
   editState.situation = e.situation;
+  editState.card      = parsedCard;
   renderEditChips('edit-method-chips',    editState.direction==='out'?METHODS_OUT:METHODS_IN,       'method');
   renderEditChips('edit-situation-chips', editState.direction==='out'?SITUATIONS_OUT:SITUATIONS_IN, 'situation');
+  updateEditCardField();
   updateEditWhoField();
 
   document.getElementById('editModal').classList.add('show');
@@ -1089,10 +1175,12 @@ function setEditDirection(dir) {
   editState.direction  = dir;
   editState.method     = null;
   editState.situation  = null;
+  editState.card       = null;
   document.getElementById('edit-btn-out').classList.toggle('active', dir==='out');
   document.getElementById('edit-btn-in').classList.toggle('active',  dir==='in');
   renderEditChips('edit-method-chips',    dir==='out'?METHODS_OUT:METHODS_IN,       'method');
   renderEditChips('edit-situation-chips', dir==='out'?SITUATIONS_OUT:SITUATIONS_IN, 'situation');
+  updateEditCardField();
   updateEditWhoField();
 }
 
@@ -1110,6 +1198,7 @@ function selectEditChip(key, idx) {
     : (editState.direction==='out'?SITUATIONS_OUT:SITUATIONS_IN);
   editState[key] = list[idx];
   renderEditChips(key==='method'?'edit-method-chips':'edit-situation-chips', list, key);
+  if (key==='method')    updateEditCardField();
   if (key==='situation') updateEditWhoField();
 }
 
@@ -1118,6 +1207,23 @@ function updateEditWhoField() {
     ['Lend to friend','Got money back','Borrowed from someone'].some(s=>editState.situation.includes(s));
   document.getElementById('editWhoField').classList.toggle('show', show);
 }
+function updateEditCardField() {
+  const isCC = editState.method && editState.method.includes('Credit Card');
+  if (!isCC) editState.card = null;
+  document.getElementById('editCardField').classList.toggle('show', !!isCC);
+  if (isCC) renderEditCardChips();
+}
+function renderEditCardChips() {
+  document.getElementById('edit-card-chips').innerHTML = CREDIT_CARDS.map((c, i) => {
+    const active = editState.card === c;
+    return `<button class="chip${active?' active '+editState.direction+'-mode':''}"
+      onclick="selectEditCard(${i})">${c}</button>`;
+  }).join('');
+}
+function selectEditCard(idx) {
+  editState.card = CREDIT_CARDS[idx];
+  renderEditCardChips();
+}
 
 async function saveEdit() {
   const amount = parseFloat(document.getElementById('editAmount').value);
@@ -1125,21 +1231,30 @@ async function saveEdit() {
   if (!editState.method)       { showToast('Pick a method ⚠️','#ffcc44');   return; }
   if (!editState.situation)    { showToast('Pick a situation ⚠️','#ffcc44'); return; }
 
-  const date = document.getElementById('editDate').value;
-  const desc = document.getElementById('editDesc').value.trim();
-  const who  = document.getElementById('editWho').value.trim();
+  const date     = document.getElementById('editDate').value;
+  const editTime = document.getElementById('editTime').value;
+  const desc     = document.getElementById('editDesc').value.trim();
+  const who      = document.getElementById('editWho').value.trim();
+  const newSavedAt = (date && editTime)
+    ? `${date}T${editTime}:00+09:00`
+    : entries[idx]?.savedAt || new Date().toISOString();
 
   // Update in local entries array
   const idx = entries.findIndex(e => String(e.id) === String(editState.id));
   if (idx === -1) { closeEdit(); return; }
 
+  const editMethodFull = (editState.method && editState.method.includes('Credit Card') && editState.card)
+    ? editState.method + ' — ' + editState.card
+    : editState.method;
+
   entries[idx] = {
     ...entries[idx],
     direction: editState.direction,
     amount,
-    method:    editState.method,
+    method:    editMethodFull,
     situation: editState.situation,
-    desc, who, date
+    desc, who, date,
+    savedAt:   newSavedAt
   };
   localStorage.setItem('mt_entries', JSON.stringify(entries));
   renderEntries();
@@ -1153,8 +1268,8 @@ async function saveEdit() {
       await fetch(scriptUrl, {
         method: 'POST',
         body: JSON.stringify({ action:'update', id: editState.id,
-          direction: editState.direction, amount, method: editState.method,
-          situation: editState.situation, desc, who, date }),
+          direction: editState.direction, amount, method: editMethodFull,
+          situation: editState.situation, desc, who, date, savedAt: newSavedAt }),
         headers: {'Content-Type':'text/plain'}, mode:'no-cors'
       });
     } catch(e) { /* silent — local update succeeded */ }
@@ -1220,14 +1335,25 @@ function setSyncStatus(type,msg){
 }
 function openSetup(){
   document.getElementById('scriptUrlInput').value=scriptUrl;
+  document.getElementById('sheetUrlInput').value=sheetUrl;
   document.getElementById('setupModal').classList.add('show');
 }
 function closeSetup(){ document.getElementById('setupModal').classList.remove('show'); }
 function saveScriptUrl(){
   const url=document.getElementById('scriptUrlInput').value.trim();
+  const surl=document.getElementById('sheetUrlInput').value.trim();
   scriptUrl=url; localStorage.setItem('mt_scriptUrl',url);
-  closeSetup(); updateSyncStatus();
+  sheetUrl=surl; localStorage.setItem('mt_sheetUrl',surl);
+  closeSetup(); updateSyncStatus(); updateSheetLink();
   showToast(url?'Connected! 🌸':'Disconnected','#7fff7f');
+}
+function updateSheetLink(){
+  const bar=document.getElementById('sheetLinkBar');
+  const btn=document.getElementById('sheetLinkBtn');
+  if(bar&&btn){
+    bar.style.display=sheetUrl?'block':'none';
+    btn.href=sheetUrl||'#';
+  }
 }
 
 // ══════════════════════════════════════════════════
