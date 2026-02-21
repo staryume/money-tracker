@@ -407,8 +407,7 @@ async function saveEntry() {
   if (scriptUrl) {
     setSyncStatus('loading','Syncing…');
     try {
-      const payload = { ...entry }; delete payload.receiptImage; // images not sent to Sheets
-      await fetch(scriptUrl, { method:'POST', body: JSON.stringify(payload), mode:'no-cors' });
+      await fetch(scriptUrl, { method:'POST', body: JSON.stringify(entry), headers:{'Content-Type':'text/plain'}, mode:'no-cors' });
       setSyncStatus('ok','Synced to Google Sheets ✓');
     } catch(e) {
       setSyncStatus('error','Sync failed — saved locally');
@@ -441,7 +440,9 @@ function renderEntries() {
     const sign  = e.direction==='out'?'-':'+';
     const label = e.desc || e.situation.replace(/^\S+\s/,'');
     const d     = new Date(e.date+'T00:00:00');
-    const dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const savedAt  = e.savedAt ? new Date(e.savedAt) : d;
+    const dateStr  = savedAt.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'Asia/Tokyo'});
+    const timeStr  = savedAt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Tokyo'});
     const method  = e.method.replace(/^\S+\s/,'');
     const thumb   = e.receiptImage
       ? `<img class="entry-receipt-thumb" src="${e.receiptImage}" onclick="openImgModal('${e.receiptImage}')" title="View receipt">`
@@ -450,7 +451,7 @@ function renderEntries() {
       <div class="entry-icon ${e.direction}">${icon}</div>
       <div class="entry-info">
         <div class="entry-desc">${label}</div>
-        <div class="entry-meta">${method} · ${dateStr}${e.who?' · '+e.who:''}</div>
+        <div class="entry-meta">${method} · ${dateStr} ${timeStr}${e.who?' · '+e.who:''}</div>
         <div class="confirm-row" id="confirm-${e.id}" style="display:none">
           <span style="font-size:12px;color:var(--accent-out)">Delete this entry?</span>
           <button class="confirm-yes" onclick="confirmDelete(${e.id})">Yes, delete</button>
@@ -477,11 +478,27 @@ function cancelDelete(id) {
   document.getElementById('confirm-'+id).style.display='none';
   document.getElementById('card-'+id).classList.remove('confirming');
 }
-function confirmDelete(id) {
+async function confirmDelete(id) {
+  // Remove locally first (instant)
   entries = entries.filter(e => e.id !== id);
   localStorage.setItem('mt_entries', JSON.stringify(entries));
   renderEntries();
-  showToast('Entry deleted','#ffcc44');
+  showToast('Deleted locally 🗑','#ffcc44');
+
+  // Also remove from Google Sheets if connected
+  if (scriptUrl) {
+    try {
+      await fetch(scriptUrl, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete', id }),
+        headers: {'Content-Type':'text/plain'},
+        mode: 'no-cors'
+      });
+      showToast('Deleted from Sheets too ✓','#ffcc44');
+    } catch(err) {
+      showToast('Deleted locally — check Sheets manually','#ff6b9d');
+    }
+  }
 }
 
 // ══ Summary ══
